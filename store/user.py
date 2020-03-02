@@ -1,15 +1,18 @@
 import uuid
-from moduleinternal.config import mysql
-from moduleinternal.models import ResponseTemplate, nasabahVerified
+from store.config import mysql
+from store.models import ResponseTemplate, UserVerified
 from datetime import datetime
 
-def nasabah_login(email, password):
+
+#Ini adalah Rest API buat Login nya
+
+def user_login(email, password):
     responseHttp = ResponseTemplate()
     try:
         conn = mysql.connect()
         cursor =conn.cursor()
 
-        queryData = "select email,nama from nasabah where email=%s and password=%s"
+        queryData = "select email,nama from user where email=%s and password=%s"
         cursor.execute(queryData,(email,password))
         records = cursor.fetchall()
         if cursor.rowcount == 0:
@@ -18,8 +21,8 @@ def nasabah_login(email, password):
             return responseHttp
 
         generatedToken = str(uuid.uuid4())
-        queryData = "UPDATE nasabah SET token=%s, last_login=%s WHERE email=%s AND password=%s"
-        cursor.execute(queryData,(generatedToken,datetime.now(),email,password))
+        queryData = "UPDATE user SET token=%s WHERE email=%s AND password=%s"
+        cursor.execute(queryData,(generatedToken, email, password))
         data={
             "email":records[0][0],
             "nama": records[0][1],
@@ -37,12 +40,20 @@ def nasabah_login(email, password):
 
     return responseHttp
 
-def cek_nasabah_token(token):
+
+
+
+
+
+
+#function dibuat untuk ngecek token
+#kalo token masuk, ini yang menentukan berhak apa tidak nya
+def cek_user_token(token):
     result = True
     try:
         conn = mysql.connect()
         cursor = conn.cursor()
-        queryData = "select email,nama from nasabah where token=%s"
+        queryData = "select email,nama from user where token=%s"
         cursor.execute(queryData, (token))
         if cursor.rowcount > 0:
             result = True
@@ -53,34 +64,45 @@ def cek_nasabah_token(token):
 
     return result
 
-def cek_nasabah_token2(token):
-    result = nasabahVerified()
+
+
+
+
+
+#ini dibuat untuk kebalikan nya bukan berhak apa tidaknya, serta membawa identitas profil nya siapa, dari token ketahuan siapa usernya
+def cek_user_token2(token):
+    result = UserVerified()
     try:
         conn = mysql.connect()
         cursor = conn.cursor()
-        queryData = "select email,nama,organization_id,role_id from nasabah where token=%s"
+        queryData = "select id,email,nama from user where token=%s"
         cursor.execute(queryData, token)
         print(str(queryData))
         if cursor.rowcount > 0:
             records = cursor.fetchall()
             result.permit = True
-            result.email = records[0][0]
-            result.nama = records[0][1]
-            result.organization_id = records[0][2]
-            result.role_id = records[0][3]
-        conn.commit()
+            result.id = records[0][0]
+            result.email = records[0][1]
+            result.nama = records[0][2]
+        conn.commit()   #update database
         cursor.close()
     except:
         result.permit = False
 
     return result
 
-def nasabah_logout(token):
+
+
+
+
+
+#Rest API buat Logout, jadi tokennya di kosongkan dan tidak bisa dipakai lagi
+def user_logout(token):
     responseHttp = ResponseTemplate()
     try:
         conn = mysql.connect()
         cursor = conn.cursor()
-        queryData = "update nasabah set token=null where token=%s"
+        queryData = "update user set token=null where token=%s"
         cursor.execute(queryData, (token))
         conn.commit()
         cursor.close()
@@ -98,17 +120,23 @@ def nasabah_logout(token):
         responseHttp.data = []
 
     return responseHttp
-# list_nasabah
-def list_nasabah(page, limit, search):
+
+
+
+
+
+# list_user untuk menampilkan daftar list user siapa aja
+def list_user(page, limit, search):
     responseHttp = ResponseTemplate()
     try:
         conn = mysql.connect()
         cursor =conn.cursor()
-        cursor.execute("select sum(1) from nasabah")
+        cursor.execute("select sum(1) from user where nama like %s", ('%'+search+'%') )
         records = cursor.fetchall()
+        #untuk mengeload secara bertahap per halaman supaya ngga loading terlalu lama, dan boros bandwidth
         responseHttp.pagination = {"page": page, "limit": limit, "total": int(records[0][0])}
-        queryData = "select id,nama,email,alamat,saldo,UNIX_TIMESTAMP(last_login),UNIX_TIMESTAMP(create_date),UNIX_TIMESTAMP(update_date) from nasabah where nama like %s limit %s , %s"
-        cursor.execute(queryData,('%'+search+'%', (page-1), limit))
+        queryData = "select id,nama,email,alamat,UNIX_TIMESTAMP(created_date),UNIX_TIMESTAMP(updated_date) from user where nama like %s limit %s , %s"
+        cursor.execute(queryData,('%'+search+'%', (page-1)*limit , limit))
         records = cursor.fetchall()
         conn.commit()
         cursor.close()
@@ -121,10 +149,8 @@ def list_nasabah(page, limit, search):
                     "nama": row[1],
                     "email": row[2],
                     "alamat": row[3],
-                    "saldo": row[4],
-                    "last_login": row[5],
-                    "created_date": row[6],
-                    "updated_date": row[7]
+                    "created_date": row[4],
+                    "updated_date": row[5]
                 })
 
         responseHttp.status = "success"
@@ -138,12 +164,18 @@ def list_nasabah(page, limit, search):
         responseHttp.data = []
     return responseHttp
 
-def view_nasabah(id):
+
+
+
+
+
+#detail nya user by id
+def view_user(id):
     responseHttp = ResponseTemplate()
     try:
         conn = mysql.connect()
         cursor = conn.cursor()
-        queryData = "select id,nama,email,alamat,saldo,last_login,UNIX_TIMESTAMP(create_date),UNIX_TIMESTAMP(update_date) from nasabah where id=%s"
+        queryData = "select id,nama,email,alamat,UNIX_TIMESTAMP(created_date),UNIX_TIMESTAMP(updated_date) from user where id=%s"
         cursor.execute(queryData,id)
         records = cursor.fetchall()
 
@@ -154,10 +186,8 @@ def view_nasabah(id):
             data["nama"]= records[0][1]
             data["email"] = records[0][2]
             data["alamat"] = records[0][3]
-            data["saldo"] = records[0][4]
-            data["last_login"] = str(records[0][5])
-            data["created_date"] = records[0][6]
-            data["updated_date"] = records[0][7]
+            data["created_date"] = records[0][4]
+            data["updated_date"] = records[0][5]
             responseHttp.status = "success"
             responseHttp.code = 200
         else:
@@ -173,14 +203,18 @@ def view_nasabah(id):
         responseHttp.data = []
     return responseHttp
 
-def create_nasabah(nama,email,alamat):
+
+
+
+#untuk nambah user
+def create_user(nama,email,alamat):
     responseHttp = ResponseTemplate()
     try:
         conn = mysql.connect()
         cursor =conn.cursor()
-        queryData = "insert into nasabah (id,nama,email,alamat,saldo) values (%s, %s, %s, %s, %s )"
+        queryData = "insert into user (id,nama,email,alamat) values (%s, %s, %s, %s )"
         generatedToken = str(uuid.uuid4())
-        cursor.execute(queryData,(generatedToken, nama,email,alamat,0))
+        cursor.execute(queryData,(generatedToken, nama,email,alamat))
 
         responseHttp.status = "success"
         responseHttp.code = 200
@@ -194,12 +228,16 @@ def create_nasabah(nama,email,alamat):
         responseHttp.data = []
     return responseHttp
 
-def delete_nasabah(id):
+
+
+
+#untuk menghapus user
+def delete_user(id):
     responseHttp = ResponseTemplate()
     try:
         conn = mysql.connect()
         cursor = conn.cursor()
-        queryData = "delete from nasabah where id=%s"
+        queryData = "delete from user where id=%s"
         cursor.execute(queryData, id)
 
         conn.commit()
@@ -219,13 +257,19 @@ def delete_nasabah(id):
         responseHttp.data = []
     return responseHttp
 
-def update_nasabah(id,nama,email,alamat):
+
+
+
+
+
+#untuk mengupdate usernya kalau mau mengganti nama atau alamatnya
+def update_user(id,nama,alamat):
     responseHttp = ResponseTemplate()
     try:
         conn = mysql.connect()
         cursor =conn.cursor()
-        queryData = "update nasabah set nama=%s,email=%s,alamat=%s where id=%s"
-        cursor.execute(queryData,(nama,email,alamat, id))
+        queryData = "update user set nama=%s,alamat=%s where id=%s"
+        cursor.execute(queryData,(nama,alamat, id))
         conn.commit()
         cursor.close()
 

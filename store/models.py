@@ -12,25 +12,17 @@ class ResponseTemplate:
         return json.dumps(self, default=lambda o: o.__dict__,
             sort_keys=True, indent=4)
 
-
-class AnnotationModel:
-    def __init__(self):
-        self.name = ""
-        self.xmin = 0
-        self.ymin = 0
-        self.xmax = 0
-        self.ymax = 0
-
-    def toJSON(self):
-        return json.dumps(self, default=lambda o: o.__dict__,
-            sort_keys=True, indent=4)
-
-class nasabahVerified:
+class UserVerified:
     def __init__(self):
         self.permit = False
+        self.id = ''
         self.email = ''
         self.nama = ''
         self.token = ''
 
     def toJSON(self):
         return json.dumps(self, default=lambda o: o.__dict__, sort_keys=True, indent=4)
+
+
+
+#Ini buat nampung respons nya Rest API agar message nya rapi.
